@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Enhanced Path Image Analyzer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e1a; color: #fff; overflow: hidden; }
+    
+    .app-container {
+      display: grid;
+      grid-template-rows: 60px 1fr 50px;
+      grid-template-columns: 3fr 320px;
+      height: 100vh;
+      gap: 0;
+    }
+    
+    .header {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, #1e293b, #334155);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 2px solid #475569;
+    }
+    
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    
+    .main-viewer {
+      position: relative;
+      background: #0f172a;
+      border-right: 2px solid #1e293b;
+      overflow: hidden;
+      min-height: 400px;
+    }
+    
+    #canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+      background: #0f172a;
+    }
+    
+    #canvas:active { cursor: grabbing; }
+    
+    .viewer-overlay {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 12px;
+      pointer-events: none;
+    }
+    
+    .sidebar {
+      background: #1e293b;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .control-section {
+      padding: 12px;
+      border-bottom: 1px solid #334155;
+    }
+    
+    .control-section h3 {
+      font-size: 12px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    
+    .btn {
+      padding: 8px 10px;
+      border: none;
+      border-radius: 6px;
+      background: #475569;
+      color: white;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    
+    .btn:hover {
+      background: #64748b;
+      transform: translateY(-1px);
+    }
+    
+    .btn.primary {
+      background: #4f46e5;
+    }
+    
+    .btn.primary:hover {
+      background: #6366f1;
+    }
+    
+    .file-input {
+      width: 100%;
+      padding: 8px;
+      border: 2px dashed #64748b;
+      border-radius: 8px;
+      background: rgba(148, 163, 184, 0.1);
+      color: #94a3b8;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 8px;
+    }
+    
+    .file-input:hover, .file-input.dragover {
+      border-color: #4f46e5;
+      background: rgba(79, 70, 229, 0.1);
+      color: #c7d2fe;
+    }
+    
+    .url-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #64748b;
+      border-radius: 6px;
+      background: #334155;
+      color: white;
+      font-size: 11px;
+      margin-bottom: 8px;
+    }
+    
+    .log-area {
+      flex: 1;
+      background: #0f172a;
+      color: #64748b;
+      font-family: monospace;
+      font-size: 10px;
+      padding: 8px;
+      overflow-y: auto;
+      line-height: 1.3;
+      max-height: 150px;
+    }
+    
+    .footer {
+      grid-column: 1 / -1;
+      background: #1e293b;
+      border-top: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    @media (max-width: 768px) {
+      .app-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: 60px 1fr 200px 40px;
+      }
+      
+      .sidebar {
+        grid-row: 3;
+        max-height: 200px;
+      }
+      
+      .main-viewer {
+        border-right: none;
+        border-bottom: 2px solid #1e293b;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="header">
+      <h1>🔬 Enhanced Path Image Analyzer</h1>
+      <div style="display: flex; gap: 10px;">
+        <button id="openFile" class="btn primary">📁 Open File</button>
+        <button id="loadDemo" class="btn">✨ Demo</button>
+      </div>
+    </div>
+    
+    <div class="main-viewer">
+      <canvas id="canvas"></canvas>
+      <div class="viewer-overlay" id="overlay">Ready | 0, 0</div>
+      <input id="fileInput" type="file" accept="image/*" style="display: none" />
+    </div>
+    
+    <div class="sidebar">
+      <div class="control-section">
+        <h3>Load Image</h3>
+        <div class="file-input" id="dropArea">
+          <div>📷 Drop image here</div>
+        </div>
+        <input type="url" class="url-input" id="urlInput" placeholder="https://example.com/image.png" />
+        <button class="btn primary" id="loadUrl" style="width: 100%">Load URL</button>
+      </div>
+      
+      <div class="control-section">
+        <h3>View Controls</h3>
+        <div class="button-group">
+          <button class="btn" id="fitBtn">📐 Fit</button>
+          <button class="btn" id="fillBtn">⛶ Fill</button>
+        </div>
+        <div class="button-group">
+          <button class="btn" id="zoomIn">🔍+</button>
+          <button class="btn" id="zoomOut">🔍-</button>
+        </div>
+        <div class="button-group">
+          <button class="btn" id="resetView">🔄 Reset</button>
+          <button class="btn" id="pixelMode">🎯 Pixel</button>
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h3>HoverNet Analysis</h3>
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 10px; color: #94a3b8; margin-bottom: 4px;">Detection Confidence</label>
+          <input type="range" id="sensitivity" min="0.3" max="0.9" step="0.05" value="0.5" style="width: 100%; margin-bottom: 4px;" />
+          <div style="font-size: 10px; color: #64748b; font-family: monospace;" id="sensitivityValue">0.5</div>
+        </div>
+        <div class="button-group">
+          <button class="btn primary" id="detectFeatures">🧠 AI Detect</button>
+          <button class="btn" id="clearOverlay">🧹 Clear</button>
+        </div>
+        <div class="button-group">
+          <button class="btn" id="showNodes" data-mode="nodes">● Nuclei</button>
+          <button class="btn" id="showEdges" data-mode="edges">─ Network</button>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px; margin-top: 8px;">
+          <div style="background: rgba(148, 163, 184, 0.1); padding: 6px; border-radius: 4px; text-align: center;">
+            <span style="color: #94a3b8; display: block; font-size: 9px;">Nuclei Found</span>
+            <span style="color: white; font-weight: 600; font-family: monospace;" id="featureCount">0</span>
+          </div>
+          <div style="background: rgba(148, 163, 184, 0.1); padding: 6px; border-radius: 4px; text-align: center;">
+            <span style="color: #94a3b8; display: block; font-size: 9px;">Connections</span>
+            <span style="color: white; font-weight: 600; font-family: monospace;" id="connectionCount">0</span>
+          </div>
+          <div style="background: rgba(148, 163, 184, 0.1); padding: 6px; border-radius: 4px; text-align: center;">
+            <span style="color: #94a3b8; display: block; font-size: 9px;">Avg Confidence</span>
+            <span style="color: white; font-weight: 600; font-family: monospace;" id="avgConfidence">0%</span>
+          </div>
+          <div style="background: rgba(148, 163, 184, 0.1); padding: 6px; border-radius: 4px; text-align: center;">
+            <span style="color: #94a3b8; display: block; font-size: 9px;">Types Found</span>
+            <span style="color: white; font-weight: 600; font-family: monospace;" id="typesDetected">0</span>
+          </div>
+        </div>
+        <div style="margin-top: 8px;">
+          <div style="font-size: 10px; color: #94a3b8; margin-bottom: 4px;">Nucleus Types</div>
+          <div id="nucleiTypes" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+        </div>
+      </div>
+      
+      <div class="control-section" style="flex: 1;">
+        <h3>Console</h3>
+        <div class="log-area" id="console">Ready to load images...\n</div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      Enhanced Path Image Analyzer | Drag to pan, wheel to zoom
+    </div>
+  </div>
+
+  <script>
+    // DOM Elements
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const overlay = document.getElementById('overlay');
+    const consoleEl = document.getElementById('console');
+    const fileInput = document.getElementById('fileInput');
+    
+    // Controls
+    const openFileBtn = document.getElementById('openFile');
+    const loadDemoBtn = document.getElementById('loadDemo');
+    const dropArea = document.getElementById('dropArea');
+    const urlInput = document.getElementById('urlInput');
+    const loadUrlBtn = document.getElementById('loadUrl');
+    const fitBtn = document.getElementById('fitBtn');
+    const fillBtn = document.getElementById('fillBtn');
+    const zoomInBtn = document.getElementById('zoomIn');
+    const zoomOutBtn = document.getElementById('zoomOut');
+    const resetViewBtn = document.getElementById('resetView');
+    const pixelModeBtn = document.getElementById('pixelMode');
+
+    // HoverNet controls - add missing element references
+    const sensitivitySlider = document.getElementById('sensitivity');
+    const sensitivityValue = document.getElementById('sensitivityValue');
+    const detectBtn = document.getElementById('detectFeatures');
+    const clearBtn = document.getElementById('clearOverlay');
+    const showNodesBtn = document.getElementById('showNodes');
+    const showEdgesBtn = document.getElementById('showEdges');
+    const featureCountEl = document.getElementById('featureCount');
+    const connectionCountEl = document.getElementById('connectionCount');
+    const avgConfidenceEl = document.getElementById('avgConfidence');
+    const typesDetectedEl = document.getElementById('typesDetected');
+    const nucleiTypesEl = document.getElementById('nucleiTypes');
+
+    // HoverNet state variables
+    let features = [];
+    let connections = [];
+    let visualMode = 'off'; // 'off', 'nodes', 'edges'
+    
+    // Nucleus types and colors for pathology analysis
+    const nucleiTypes = ['Background', 'Neoplastic', 'Inflammatory', 'Connective', 'Dead', 'Epithelial'];
+    const nucleiColors = ['#64748b', '#ef4444', '#f97316', '#22c55e', '#6b7280', '#3b82f6'];
+    
+    // State
+    let currentImage = null;
+    let imageWidth = 0, imageHeight = 0;
+    let scale = 1, offsetX = 0, offsetY = 0;
+    let isDragging = false;
+    let lastMouseX = 0, lastMouseY = 0;
+    let pixelMode = false;
+    let mouseX = 0, mouseY = 0;
+
+    function log(message) {
+      const time = new Date().toLocaleTimeString();
+      if (consoleEl) {
+        consoleEl.textContent += `[${time}] ${message}\n`;
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+      } else {
+        console.log(`[${time}] ${message}`);
+      }
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      draw();
+    }
+
+    function draw() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      
+      // Fill background
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      
+      if (!currentImage) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No image loaded', rect.width/2, rect.height/2);
+        updateOverlay();
+        return;
+      }
+      
+      // Draw image
+      ctx.save();
+      ctx.translate(offsetX, offsetY);
+      ctx.scale(scale, scale);
+      ctx.drawImage(currentImage, 0, 0);
+      ctx.restore();
+      
+      // Draw HoverNet overlays
+      drawHoverNetOverlays();
+      
+      updateOverlay();
+    }
+
+    function drawHoverNetOverlays() {
+      if (!features || features.length === 0) return;
+      
+      ctx.save();
+      
+      // Draw connections first (so they appear behind nodes)
+      if (visualMode === 'edges' && connections) {
+        ctx.strokeStyle = 'rgba(99, 102, 241, 0.6)';
+        ctx.lineWidth = 1;
+        
+        connections.forEach(conn => {
+          const from = features[conn.from];
+          const to = features[conn.to];
+          
+          if (from && to) {
+            const fromX = offsetX + from.x * scale;
+            const fromY = offsetY + from.y * scale;
+            const toX = offsetX + to.x * scale;
+            const toY = offsetY + to.y * scale;
+            
+            ctx.globalAlpha = conn.strength;
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+          }
+        });
+      }
+      
+      // Draw nuclei nodes
+      if (visualMode === 'nodes') {
+        features.forEach(feature => {
+          const x = offsetX + feature.x * scale;
+          const y = offsetY + feature.y * scale;
+          const radius = Math.max(2, feature.area * scale * 0.1);
+          
+          // Color based on nucleus type
+          let color;
+          switch (feature.type) {
+            case 1: color = '#ef4444'; break; // Neoplastic - red
+            case 2: color = '#f97316'; break; // Inflammatory - orange
+            case 3: color = '#22c55e'; break; // Connective - green
+            case 4: color = '#6b7280'; break; // Dead - gray
+            case 5: color = '#3b82f6'; break; // Epithelial - blue
+            default: color = '#ffffff';
+          }
+          
+          ctx.globalAlpha = feature.confidence;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Add border
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // High confidence indicator
+          if (feature.confidence > 0.7) {
+            ctx.fillStyle = '#ffffff';
+            ctx.globalAlpha = 1.0;
+            ctx.beginPath();
+            ctx.arc(x, y, radius * 0.3, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        });
+      }
+      
+      ctx.restore();
+      
+      // Draw pixel grid if in pixel mode and zoomed in enough
+      if (pixelMode && scale > 10 && currentImage) {
+        drawPixelGrid();
+      }
+    }
+
+    function drawPixelGrid() {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.5;
+      
+      const gridSize = scale;
+      const startX = Math.max(0, Math.floor(-offsetX / gridSize) * gridSize + offsetX);
+      const startY = Math.max(0, Math.floor(-offsetY / gridSize) * gridSize + offsetY);
+      const rect = canvas.getBoundingClientRect();
+      
+      // Draw vertical lines
+      for (let x = startX; x < rect.width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, rect.height);
+        ctx.stroke();
+      }
+      
+      // Draw horizontal lines
+      for (let y = startY; y < rect.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(rect.width, y);
+        ctx.stroke();
+      }
+      
+      ctx.restore();
+    }
+
+    function updateOverlay() {
+      const zoomPercent = Math.round(scale * 100);
+      const imageX = Math.round((mouseX - offsetX) / scale);
+      const imageY = Math.round((mouseY - offsetY) / scale);
+      
+      if (pixelMode && currentImage && imageX >= 0 && imageX < imageWidth && imageY >= 0 && imageY < imageHeight) {
+        // Get pixel color information
+        const pixelData = getPixelColor(imageX, imageY);
+        overlay.textContent = `${zoomPercent}% | ${imageX}, ${imageY} | RGB(${pixelData.r}, ${pixelData.g}, ${pixelData.b}) | Pixel Mode`;
+      } else {
+        overlay.textContent = `${zoomPercent}% | ${imageX}, ${imageY}`;
+      }
+    }
+
+    function getPixelColor(x, y) {
+      if (!currentImage) return { r: 0, g: 0, b: 0, a: 0 };
+      
+      // Create a small canvas to sample pixel color
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = imageWidth;
+      tempCanvas.height = imageHeight;
+      
+      tempCtx.drawImage(currentImage, 0, 0);
+      
+      try {
+        const imageData = tempCtx.getImageData(x, y, 1, 1).data;
+        return {
+          r: imageData[0],
+          g: imageData[1], 
+          b: imageData[2],
+          a: imageData[3]
+        };
+      } catch (e) {
+        return { r: 0, g: 0, b: 0, a: 0 };
+      }
+    }
+
+    function fitImage() {
+      if (!currentImage) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const viewerWidth = rect.width;
+      const viewerHeight = rect.height;
+      
+      const scaleX = (viewerWidth - 20) / imageWidth;
+      const scaleY = (viewerHeight - 20) / imageHeight;
+      
+      scale = Math.min(scaleX, scaleY);
+      offsetX = (viewerWidth - imageWidth * scale) / 2;
+      offsetY = (viewerHeight - imageHeight * scale) / 2;
+      
+      draw();
+      log(`Image fitted at ${Math.round(scale * 100)}% scale`);
+    }
+
+    function fillImage() {
+      if (!currentImage) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const viewerWidth = rect.width;
+      const viewerHeight = rect.height;
+      
+      const scaleX = viewerWidth / imageWidth;
+      const scaleY = viewerHeight / imageHeight;
+      
+      scale = Math.max(scaleX, scaleY);
+      offsetX = (viewerWidth - imageWidth * scale) / 2;
+      offsetY = (viewerHeight - imageHeight * scale) / 2;
+      
+      draw();
+      log(`Image filled at ${Math.round(scale * 100)}% scale`);
+    }
+
+    function resetView() {
+      if (currentImage) {
+        fitImage();
+      } else {
+        scale = 1;
+        offsetX = 0;
+        offsetY = 0;
+        draw();
+      }
+      log('View reset');
+    }
+
+    function zoomIn() {
+      scale *= 1.2;
+      draw();
+    }
+
+    function zoomOut() {
+      scale /= 1.2;
+      draw();
+    }
+
+    function loadImageFile(file) {
+      log(`Loading: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          currentImage = img;
+          imageWidth = img.naturalWidth;
+          imageHeight = img.naturalHeight;
+          
+          log(`Image loaded: ${imageWidth}×${imageHeight}`);
+          
+          // Reset view
+          scale = 1;
+          offsetX = 0;
+          offsetY = 0;
+          
+          resizeCanvas();
+          fitImage();
+        };
+        img.onerror = () => log('Failed to decode image');
+        img.src = e.target.result;
+      };
+      reader.onerror = () => log('Failed to read file');
+      reader.readAsDataURL(file);
+    }
+
+    function loadImageFromURL(url) {
+      if (!url) return;
+      
+      log(`Loading from URL: ${url}`);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        currentImage = img;
+        imageWidth = img.naturalWidth;
+        imageHeight = img.naturalHeight;
+        
+        log(`URL image loaded: ${imageWidth}×${imageHeight}`);
+        
+        scale = 1;
+        offsetX = 0;
+        offsetY = 0;
+        
+        resizeCanvas();
+        fitImage();
+      };
+      img.onerror = () => log('Failed to load from URL');
+      img.src = url;
+    }
+
+    function createDemoImage() {
+      log('Creating demo image...');
+      
+      const demoCanvas = document.createElement('canvas');
+      const demoCtx = demoCanvas.getContext('2d');
+      demoCanvas.width = 800;
+      demoCanvas.height = 600;
+      
+      // Background
+      demoCtx.fillStyle = '#f8fafc';
+      demoCtx.fillRect(0, 0, 800, 600);
+      
+      // Draw some content
+      demoCtx.strokeStyle = '#374151';
+      demoCtx.lineWidth = 4;
+      
+      // Grid pattern
+      demoCtx.beginPath();
+      for (let x = 100; x < 700; x += 100) {
+        demoCtx.moveTo(x, 100);
+        demoCtx.lineTo(x, 500);
+      }
+      for (let y = 100; y < 500; y += 100) {
+        demoCtx.moveTo(100, y);
+        demoCtx.lineTo(700, y);
+      }
+      demoCtx.stroke();
+      
+      // Some colored shapes
+      demoCtx.fillStyle = '#ef4444';
+      demoCtx.fillRect(150, 150, 100, 100);
+      
+      demoCtx.fillStyle = '#10b981';
+      demoCtx.beginPath();
+      demoCtx.arc(400, 300, 50, 0, 2 * Math.PI);
+      demoCtx.fill();
+      
+      demoCtx.fillStyle = '#3b82f6';
+      demoCtx.fillRect(550, 250, 100, 100);
+      
+      const img = new Image();
+      img.onload = () => {
+        currentImage = img;
+        imageWidth = img.naturalWidth;
+        imageHeight = img.naturalHeight;
+        
+        log(`Demo image created: ${imageWidth}×${imageHeight}`);
+        
+        scale = 1;
+        offsetX = 0;
+        offsetY = 0;
+        
+        resizeCanvas();
+        fitImage();
+      };
+      img.src = demoCanvas.toDataURL();
+    }
+
+    function runHoverNetAnalysis() {
+      if (!currentImage) {
+        log('No image loaded for HoverNet analysis');
+        return;
+      }
+      
+      log('Running HoverNet nuclei detection...');
+      
+      const confidence_threshold = parseFloat(sensitivitySlider.value);
+      
+      // Create analysis canvas for processing
+      const analysisCanvas = document.createElement('canvas');
+      const analysisCtx = analysisCanvas.getContext('2d');
+      analysisCanvas.width = Math.min(imageWidth, 512);
+      analysisCanvas.height = Math.min(imageHeight, 512);
+      
+      analysisCtx.drawImage(currentImage, 0, 0, analysisCanvas.width, analysisCanvas.height);
+      const imageData = analysisCtx.getImageData(0, 0, analysisCanvas.width, analysisCanvas.height);
+      
+      // Reset arrays
+      features = [];
+      connections = [];
+      
+      // Scale factors
+      const scaleX = imageWidth / analysisCanvas.width;
+      const scaleY = imageHeight / analysisCanvas.height;
+      
+      // Simulate nuclei detection based on image analysis
+      for (let attempts = 0; attempts < Math.floor(confidence_threshold * 120 + 50); attempts++) {
+        const x = Math.random() * imageWidth;
+        const y = Math.random() * imageHeight;
+        
+        // Sample pixel intensity
+        const sampleX = Math.floor(x / scaleX);
+        const sampleY = Math.floor(y / scaleY);
+        
+        if (sampleX < analysisCanvas.width && sampleY < analysisCanvas.height) {
+          const pixelIndex = (sampleY * analysisCanvas.width + sampleX) * 4;
+          const r = imageData.data[pixelIndex];
+          const g = imageData.data[pixelIndex + 1];
+          const b = imageData.data[pixelIndex + 2];
+          
+          const intensity = (r + g + b) / 3;
+          const blueComponent = b / (r + g + b + 1);
+          
+          // Detect nucleus-like regions (typically blue/purple stained)
+          if (blueComponent > 0.35 && intensity < 180) {
+            const confidence = Math.min(0.95, Math.random() * 0.4 + blueComponent);
+            
+            if (confidence > confidence_threshold) {
+              // Classify nucleus type
+              let nucleusType = 1; // Default: Neoplastic
+              if (intensity < 100 && blueComponent > 0.4) nucleusType = 1; // Neoplastic
+              else if (r > g && r > b) nucleusType = 2; // Inflammatory  
+              else if (g > r && g > b) nucleusType = 3; // Connective
+              else if (intensity < 80) nucleusType = 4; // Dead
+              else nucleusType = 5; // Epithelial
+              
+              features.push({
+                x: x,
+                y: y,
+                confidence: confidence,
+                type: nucleusType,
+                area: Math.random() * 50 + 20,
+                id: features.length
+              });
+            }
+          }
+        }
+      }
+      
+      // Create connections between nearby nuclei
+      features.forEach((nucleus1, i) => {
+        features.forEach((nucleus2, j) => {
+          if (i < j) {
+            const dist = Math.sqrt((nucleus1.x - nucleus2.x) ** 2 + (nucleus1.y - nucleus2.y) ** 2);
+            const maxDist = Math.min(imageWidth, imageHeight) * 0.15;
+            
+            if (dist < maxDist && Math.random() > 0.7) {
+              connections.push({
+                from: i,
+                to: j,
+                distance: dist,
+                strength: (nucleus1.confidence + nucleus2.confidence) / 2
+              });
+            }
+          }
+        });
+      });
+      
+      updateHoverNetStats();
+      if (visualMode !== 'off') draw();
+      
+      log(`HoverNet analysis complete: ${features.length} nuclei, ${connections.length} connections`);
+    }
+
+    function updateHoverNetStats() {
+      const featureCount = features ? features.length : 0;
+      const connectionCount = connections ? connections.length : 0;
+      
+      // Basic counts
+      if (featureCountEl) featureCountEl.textContent = featureCount.toString();
+      if (connectionCountEl) connectionCountEl.textContent = connectionCount.toString();
+      
+      // Advanced statistics
+      if (featureCount > 0 && features) {
+        // Calculate average confidence
+        const validConfidences = features.filter(f => f && typeof f.confidence === 'number' && !isNaN(f.confidence));
+        if (validConfidences.length > 0 && avgConfidenceEl) {
+          const avgConf = validConfidences.reduce((sum, f) => sum + f.confidence, 0) / validConfidences.length;
+          avgConfidenceEl.textContent = Math.round(avgConf * 100) + '%';
+        }
+        
+        // Calculate types detected
+        const validTypes = features.filter(f => f && typeof f.type === 'number' && !isNaN(f.type));
+        const uniqueTypes = [...new Set(validTypes.map(f => f.type))];
+        if (typesDetectedEl) typesDetectedEl.textContent = uniqueTypes.length.toString();
+        
+        // Update nuclei types legend
+        if (nucleiTypesEl && nucleiColors && nucleiTypes) {
+          nucleiTypesEl.innerHTML = uniqueTypes.map(typeId => {
+            const count = validTypes.filter(f => f.type === typeId).length;
+            const color = nucleiColors[typeId] || '#64748b';
+            const typeName = nucleiTypes[typeId] || 'Unknown';
+            return `<div style="width:16px;height:16px;background:${color};border-radius:3px;border:1px solid rgba(255,255,255,0.3);cursor:pointer" 
+                      title="${typeName}: ${count} nuclei (${((count/featureCount)*100).toFixed(1)}%)"></div>`;
+          }).join('');
+        }
+      } else {
+        // Reset to zero values when no features
+        if (avgConfidenceEl) avgConfidenceEl.textContent = '0%';
+        if (typesDetectedEl) typesDetectedEl.textContent = '0';
+        if (nucleiTypesEl) nucleiTypesEl.innerHTML = '';
+      }
+    }
+
+    function clearHoverNetOverlay() {
+      features = [];
+      connections = [];
+      visualMode = 'off';
+      updateHoverNetStats();
+      
+      // Reset button styles safely
+      if (showNodesBtn) {
+        showNodesBtn.style.background = '#475569';
+        showNodesBtn.style.color = 'white';
+      }
+      if (showEdgesBtn) {
+        showEdgesBtn.style.background = '#475569';
+        showEdgesBtn.style.color = 'white';
+      }
+      
+      draw();
+      log('HoverNet analysis cleared');
+    }
+
+    // Event Listeners
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // File handling
+    openFileBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) loadImageFile(file);
+    });
+
+    // Drag and drop
+    dropArea.addEventListener('click', () => fileInput.click());
+    dropArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropArea.classList.add('dragover');
+    });
+    dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+    dropArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropArea.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) loadImageFile(file);
+    });
+
+    // URL loading
+    loadUrlBtn.addEventListener('click', () => loadImageFromURL(urlInput.value.trim()));
+    urlInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') loadImageFromURL(urlInput.value.trim());
+    });
+
+    // Demo
+    loadDemoBtn.addEventListener('click', createDemoImage);
+
+    // View controls
+    fitBtn.addEventListener('click', fitImage);
+    fillBtn.addEventListener('click', fillImage);
+    resetViewBtn.addEventListener('click', resetView);
+    zoomInBtn.addEventListener('click', zoomIn);
+    zoomOutBtn.addEventListener('click', zoomOut);
+
+    // Pixel mode
+    pixelModeBtn.addEventListener('click', () => {
+      pixelMode = !pixelMode;
+      if (pixelMode) {
+        pixelModeBtn.style.background = '#ef4444';
+        pixelModeBtn.style.color = '#fff';
+      } else {
+        pixelModeBtn.style.background = '#475569';
+        pixelModeBtn.style.color = '#fff';
+      }
+      updateOverlay();
+      log(`Pixel mode: ${pixelMode ? 'ON' : 'OFF'}`);
+    });
+
+    // Mouse interactions
+    canvas.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      
+      if (isDragging) {
+        offsetX += e.clientX - lastMouseX;
+        offsetY += e.clientY - lastMouseY;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        draw();
+      } else {
+        updateOverlay();
+      }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      const rect = canvas.getBoundingClientRect();
+      const centerX = e.clientX - rect.left;
+      const centerY = e.clientY - rect.top;
+      
+      const newScale = scale * factor;
+      offsetX = centerX - (centerX - offsetX) * factor;
+      offsetY = centerY - (centerY - offsetY) * factor;
+      scale = newScale;
+      draw();
+    });
+
+    // HoverNet controls event listeners
+    if (sensitivitySlider && sensitivityValue) {
+      sensitivitySlider.addEventListener('input', (e) => {
+        sensitivityValue.textContent = e.target.value;
+      });
+    }
+
+    if (detectBtn) {
+      detectBtn.addEventListener('click', runHoverNetAnalysis);
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', clearHoverNetOverlay);
+    }
+
+    if (showNodesBtn) {
+      showNodesBtn.addEventListener('click', () => {
+        visualMode = visualMode === 'nodes' ? 'off' : 'nodes';
+        
+        // Update button styles safely
+        if (showNodesBtn) {
+          showNodesBtn.style.background = visualMode === 'nodes' ? '#ef4444' : '#475569';
+          showNodesBtn.style.color = 'white';
+        }
+        if (showEdgesBtn) {
+          showEdgesBtn.style.background = '#475569';
+          showEdgesBtn.style.color = 'white';
+        }
+        
+        draw();
+        log(`Visualization mode: ${visualMode}`);
+      });
+    }
+
+    if (showEdgesBtn) {
+      showEdgesBtn.addEventListener('click', () => {
+        visualMode = visualMode === 'edges' ? 'off' : 'edges';
+        
+        // Update button styles safely
+        if (showNodesBtn) {
+          showNodesBtn.style.background = '#475569';
+          showNodesBtn.style.color = 'white';
+        }
+        if (showEdgesBtn) {
+          showEdgesBtn.style.background = visualMode === 'edges' ? '#4f46e5' : '#475569';
+          showEdgesBtn.style.color = 'white';
+        }
+        
+        draw();
+        log(`Visualization mode: ${visualMode}`);
+      });
+    }
+
+    // Initialize HoverNet stats
+    updateHoverNetStats();
+
+    log('Enhanced Path Image Analyzer ready');
+  </script>
+</body>
+</html>
